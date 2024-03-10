@@ -5,9 +5,19 @@ from pydantic import BaseModel, validator, ValidationError, Field
 import os
 from dotenv import load_dotenv
 import re
+
+import sys
+
+# Calculate the directory two levels up from the current script
+current_directory = os.path.dirname(os.path.abspath(__file__))
+parent_directory = os.path.abspath(os.path.join(current_directory, '..', '..'))
+
+# Add the parent directory to sys.path to make the script package importable
+if parent_directory not in sys.path:
+    sys.path.insert(0, parent_directory)
+
 from script.transaction import create_user
 from script.schema import User
-
 
 st.set_page_config(page_title="Form Demo", page_icon="📊")
 

@@ -1,9 +1,20 @@
 import streamlit as st
 from pydantic import BaseModel, ValidationError, Field
 from dotenv import load_dotenv
+import sys
+import os
+
+# Calculate the directory two levels up from the current script
+current_directory = os.path.dirname(os.path.abspath(__file__))
+parent_directory = os.path.abspath(os.path.join(current_directory, '..', '..'))
+
+# Add the parent directory to sys.path to make the script package importable
+if parent_directory not in sys.path:
+    sys.path.insert(0, parent_directory)
+
+# Import create_paper from the script.transaction package
 from script.transaction import create_paper
 from script.content_details import get_paper_details
-import os
 
 load_dotenv()
 api_key = os.getenv('OPENAI_API_KEY')
