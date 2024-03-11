@@ -14,13 +14,14 @@ POSTGRES_USER = os.getenv('POSTGRES_USER')
 POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD')
 POSTGRES_DBNAME = os.getenv('POSTGRES_DBNAME')
 
-MONGO_INITDB_ROOT_USERNAME= os.getenv('MONGO_INITDB_ROOT_USERNAME')
-MONGO_INITDB_ROOT_PASSWORD= os.getenv('MONGO_INITDB_ROOT_PASSWORD')
+MONGO_INITDB_ROOT_USERNAME = os.getenv('MONGO_INITDB_ROOT_USERNAME')
+MONGO_INITDB_ROOT_PASSWORD = os.getenv('MONGO_INITDB_ROOT_PASSWORD')
+local_IP = os.getenv('local_IP')
 
 app = FastAPI()
 
 # MongoDB connection URI
-client = MongoClient(f"mongodb://{MONGO_INITDB_ROOT_USERNAME}:{MONGO_INITDB_ROOT_PASSWORD}@172.25.132.253", 27017)
+client = MongoClient(f"mongodb://{MONGO_INITDB_ROOT_USERNAME}:{MONGO_INITDB_ROOT_PASSWORD}@{local_IP}", 27017)
 
 # Select your database
 db = client['data']
@@ -33,7 +34,7 @@ paper_collection = db['Papers']
 try:
     connPostgres = psycopg2.connect(database = f"{POSTGRES_DBNAME}", 
                             user = f"{POSTGRES_USER}", 
-                            host= '172.25.132.253',
+                            host= f'{local_IP}',
                             password = f"{POSTGRES_PASSWORD}",
                             port = 5432)
 except:
