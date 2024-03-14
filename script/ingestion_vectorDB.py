@@ -1,51 +1,67 @@
 import os
-from langchain.document_loaders import ReadTheDocsLoader
-from langchain.document_loaders import PyPDFLoader
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores import Pinecone
-import pinecone
-import glob
-
+import json
+import requests
 from dotenv import load_dotenv
+from pinecone import Pinecone, ServerlessSpec
+from tqdm import tqdm
+import torch
+from transformers import AutoTokenizer, AutoModel
+# Load environment variables
 load_dotenv()
+pinecone_key = os.getenv('PINECONE_API_KEY')
+pinecone_env = os.getenv('PINECONE_ENVIRONMENT_REGION')
+pinecone_index = os.getenv('INDEX_NAME')
+local_IP = os.getenv('local_IP')
 
-pinecone.init(
-    api_key=os.environ.get("PINECONE_API_KEY"),
-    environment=os.environ.get("PINECONE_ENVIRONMENT_REGION"),
-)
-INDEX_NAME = os.environ["INDEX_NAME"]
+model_name = "sentence-transformers/all-MiniLM-L6-v2"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModel.from_pretrained(model_name)
 
+# Function to generate embeddings
+def generate_embeddings(text):
+    inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=512)
+    with torch.no_grad():
+        outputs = model(**inputs)
+    embeddings = outputs.last_hidden_state.mean(dim=1).numpy()
+    return embeddings
+
+pc = Pinecone(api_key=pinecone_key)
+
+index_name = pinecone_index  # Replace with your actual index name
+dimension = 384  # Dimension of your embeddings
+metric = "cosine"  # Metric for the vector space
+
+# Retrieve the list of indexes and check if your index exists
+indexes_info = pc.list_indexes()
+index_names = [index["name"] for index in indexes_info]  # Assuming list_indexes() returns a list of dictionaries
+
+# Check if the index exists, and create it if not
+if index_name not in index_names:
+    pc.create_index(
+        name=index_name, 
+        dimension=dimension, 
+        metric=metric,
+        spec=ServerlessSpec(
+            cloud='gcp',  # Or 'gcp', based on your preference
+            region=pinecone_env  # Choose the region closest to you or your users
+        )
+    )
+
+
+# Access the Pinecone index
+index = pc.Index(name=index_name)
 
 def ingest_docs():
-    
+    # Fetch documents from your local service
+    response = requests.get(f"http://{local_IP}/all")
+    resp_json = json.loads(response.text)
 
-# Specify the folder path and file pattern (e.g., '*.txt' for all text files)
-    folder_path = '/home/leovanzei/projects/Langchain/viavi/pdf'
-    file_pattern = '*.pdf'
-
-    # Use glob to find files that match the pattern
-    file_list = glob.glob(os.path.join(folder_path, file_pattern))
-
-    # Iterate through the matched files
-    for filepath in file_list:
-        loader = PyPDFLoader(f"{filepath}")
-        raw_documents = loader.load()
-        print(f"loaded {len(raw_documents)} documents")
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000, chunk_overlap=50, separators=["\n\n", "\n", " ", ""]
-        )
-        documents = text_splitter.split_documents(raw_documents)
-        for doc in documents:
-            new_url = doc.metadata["source"]
-            #new_url = new_url.replace("langchain-docs", "https:/")
-            #doc.metadata.update({"source": new_url})
-
-        embeddings = OpenAIEmbeddings()
-        print(f"Going to add {len(documents)} to Pinecone")
-        Pinecone.from_documents(documents, embeddings, index_name=INDEX_NAME)
-        print("****Loading to vectorestore done ***")
-
+    for item in tqdm(resp_json):
+        embedding = generate_embeddings(item["content"])
+        # Flatten the embedding to a 1D list of floats
+        embedding_flat = embedding.flatten().tolist()
+        index.upsert(vectors=[(item["name"], embedding_flat)])
+        print(str(item['name']) + ' was Loaded to Pinecone')
 
 if __name__ == "__main__":
     ingest_docs()
