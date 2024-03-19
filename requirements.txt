@@ -12,7 +12,6 @@ starlette==0.36.3
 streamlit==1.31.1
 transformers==4.37.2
 
-WARNING(pigar): some manual fixes are required since pigar has found duplicate requirements for the same import name.
 # WARNING(pigar): the following duplicate requirements are for import name: schema
 application==1.0
 appsync-copier==0.0.3

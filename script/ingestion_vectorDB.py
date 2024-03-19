@@ -51,12 +51,20 @@ if index_name not in index_names:
 # Access the Pinecone index
 index = pc.Index(name=index_name)
 
-def ingest_docs():
+response = requests.get(f"http://{local_IP}/all")
+resp_json = json.loads(response.text)
+
+names_available = [item['name'] for item in resp_json]
+print(names_available)
+def ingest_docs(resp_json):
     # Fetch documents from your local service
-    response = requests.get(f"http://{local_IP}/all")
-    resp_json = json.loads(response.text)
+
 
     for item in tqdm(resp_json):
+        # if item['name'] in names_available:
+        #     index.delete(ids=[item['name']])
+        #     print(str(item['name']) + ' was deleted to Pinecone')
+
         embedding = generate_embeddings(item["content"])
         # Flatten the embedding to a 1D list of floats
         embedding_flat = embedding.flatten().tolist()
@@ -64,4 +72,4 @@ def ingest_docs():
         print(str(item['name']) + ' was Loaded to Pinecone')
 
 if __name__ == "__main__":
-    ingest_docs()
+    ingest_docs(resp_json)

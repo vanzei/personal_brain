@@ -4,7 +4,6 @@ from backend.core import run_llm
 import streamlit as st
 from streamlit_chat import message
 from dotenv import load_dotenv
-from openai.embeddings_utils import get_embedding
 
 load_dotenv()
 
