@@ -1,7 +1,7 @@
 import os
 from typing import Any, Dict, List
 from pinecone import Pinecone, ServerlessSpec
-from langchain_openai import ChatOpenAI
+from langchain.chat_models import ChatOpenAI
 from langchain.chains import ConversationalRetrievalChain
 from dotenv import load_dotenv
 import os
@@ -50,42 +50,28 @@ def get_embeddings(text: str):
         outputs = model(**inputs)
         embeddings = outputs.last_hidden_state.mean(dim=1)
     return embeddings.numpy()
-# Assuming BaseRetriever is the correct abstract base class to inherit from
-from langchain.retrievers import BaseRetriever  # Ensure this import is correct based on LangChain's structureclass CustomRetriever(BaseRetriever):
-def __init__(self, index, model, tokenizer):
-    self.index = index
-    self.model = model
-    self.tokenizer = tokenizer
 
-def _get_relevant_documents(self, query: str, top_k: int = 10):
-    # Convert the query into embeddings using the model and tokenizer
-    with torch.no_grad():
-        inputs = self.tokenizer(query, return_tensors="pt", truncation=True, padding=True)
-        outputs = self.model(**inputs)
-        embeddings = outputs.last_hidden_state.mean(dim=1)
-
-    # Use the embeddings to query the Pinecone index
-    search_results = self.index.query(vector=embeddings.tolist(), top_k=top_k)
-    
-    # Return the matches in the format expected by LangChain
-    return search_results['matches']
-
-# Usage in your run_llm function
 def run_llm(query: str, chat_history: List[Dict[str, Any]] = []):
-    custom_retriever = CustomRetriever(index, model, tokenizer)
+    embeddings = get_embeddings(query)
+    
+    # Query the Pinecone index
+    top_k_results = 10
+    search_results = index.query(vector=embeddings.tolist(), top_k=top_k_results)
 
-    # Initialize other necessary components for ConversationalRetrievalChain
-    # ...
+    # Process the search_results to match the expected dictionary format for the retriever
+    retriever_results = {
+        'data': search_results.get('matches', [])
+    }
 
-    # Create the ConversationalRetrievalChain with the custom retriever
-    conversational_chain = ConversationalRetrievalChain(
-        retriever=custom_retriever,
-        # other parameters like combine_docs_chain, question_generator, etc.
+    chat = ChatOpenAI(
+        verbose=True,
+        temperature=0
     )
 
-    # Run the chain with the query and chat_history
-    response = conversational_chain.run({
-        "question": query,
-        "chat_history": chat_history
-    })
-    return response
+    # Ensure the retriever argument receives the correctly formatted dictionary
+    qa = ConversationalRetrievalChain.from_llm(
+        llm=chat, 
+        retriever=retriever_results, 
+        return_source_documents=True
+    )
+    return qa({"question": query, "chat_history": chat_history})
