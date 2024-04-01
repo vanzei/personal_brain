@@ -39,7 +39,6 @@ def main():
     # If "Check Content" is clicked and there's input, fetch and display paper details
     if find_content and paper_name_input:
         fetched_paper_details = get_paper_details(paper_name_input)
-        print(fetched_paper_details)
         if fetched_paper_details:
             st.session_state.paper_details.update({
                 "paper_title": fetched_paper_details[0].get('paper_title', ''),

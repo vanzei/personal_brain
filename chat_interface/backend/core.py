@@ -5,18 +5,34 @@ from langchain_openai import ChatOpenAI
 from langchain.chains import ConversationalRetrievalChain
 from dotenv import load_dotenv
 import os
-from transformers import AutoModel, AutoTokenizer
-import torch
+
+from langchain_pinecone import PineconeVectorStore
+from langchain_openai import OpenAIEmbeddings
 
 load_dotenv()
 pinecone_key = os.getenv('PINECONE_API_KEY')
 pinecone_env = os.getenv('PINECONE_ENVIRONMENT_REGION')
 pinecone_index = os.getenv('INDEX_NAME')
+openai_key = os.getenv('OPENAI_API_KEY')
+
+
+
+openai_api_key = os.environ.get('OPENAI_API_KEY') or 'OPENAI_API_KEY'
+model_name = 'text-embedding-ada-002'
+
+embed = OpenAIEmbeddings(
+    model=model_name,
+    openai_api_key=openai_api_key
+)
+
+text_field = "text"
+
+
 # Initialize Pinecone
 pc = Pinecone(api_key=pinecone_key)
 
 index_name = pinecone_index  # Replace with your actual index name
-dimension = 384  # Dimension of your embeddings
+dimension = 1536  # Dimension of your embeddings
 metric = "cosine"  # Metric for the vector space
 
 # Retrieve the list of indexes and check if your index exists
@@ -39,53 +55,63 @@ if index_name not in index_names:
 # Access the Pinecone index
 index = pc.Index(name=index_name)
 
-# Load a Hugging Face model and tokenizer
-model_name = 'sentence-transformers/all-MiniLM-L6-v2'  # Example model
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModel.from_pretrained(model_name)
-
-def get_embeddings(text: str):
-    with torch.no_grad():
-        inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True)
-        outputs = model(**inputs)
-        embeddings = outputs.last_hidden_state.mean(dim=1)
-    return embeddings.numpy()
-# Assuming BaseRetriever is the correct abstract base class to inherit from
-from langchain.retrievers import BaseRetriever  # Ensure this import is correct based on LangChain's structureclass CustomRetriever(BaseRetriever):
-def __init__(self, index, model, tokenizer):
-    self.index = index
-    self.model = model
-    self.tokenizer = tokenizer
-
-def _get_relevant_documents(self, query: str, top_k: int = 10):
-    # Convert the query into embeddings using the model and tokenizer
-    with torch.no_grad():
-        inputs = self.tokenizer(query, return_tensors="pt", truncation=True, padding=True)
-        outputs = self.model(**inputs)
-        embeddings = outputs.last_hidden_state.mean(dim=1)
-
-    # Use the embeddings to query the Pinecone index
-    search_results = self.index.query(vector=embeddings.tolist(), top_k=top_k)
-    
-    # Return the matches in the format expected by LangChain
-    return search_results['matches']
-
-# Usage in your run_llm function
-def run_llm(query: str, chat_history: List[Dict[str, Any]] = []):
-    custom_retriever = CustomRetriever(index, model, tokenizer)
-
-    # Initialize other necessary components for ConversationalRetrievalChain
-    # ...
-
-    # Create the ConversationalRetrievalChain with the custom retriever
-    conversational_chain = ConversationalRetrievalChain(
-        retriever=custom_retriever,
-        # other parameters like combine_docs_chain, question_generator, etc.
+from langchain.vectorstores import Pinecone
+def run_query(query: str) -> List[Dict[str, Any]]:
+    vectorstore = Pinecone(
+        index, embed.embed_query, text_field
     )
 
-    # Run the chain with the query and chat_history
-    response = conversational_chain.run({
-        "question": query,
-        "chat_history": chat_history
-    })
-    return response
+    vectorstore.similarity_search(
+        query,  # our search query
+        k=3  # return 3 most relevant docs
+    )
+
+    from langchain.chat_models import ChatOpenAI
+    from langchain.chains.conversation.memory import ConversationBufferWindowMemory
+    from langchain.chains import RetrievalQA
+
+    # chat completion llm
+    llm = ChatOpenAI(
+        openai_api_key=openai_api_key,
+        model_name='gpt-3.5-turbo',
+        temperature=0.0
+    )
+    # conversational memory
+    conversational_memory = ConversationBufferWindowMemory(
+        memory_key='chat_history',
+        k=5,
+        return_messages=True
+    )
+    # retrieval qa chain
+    qa = RetrievalQA.from_chain_type(
+        llm=llm,
+        chain_type="stuff",
+        retriever=vectorstore.as_retriever()
+    )
+
+    from langchain.agents import Tool
+
+    tools = [
+        Tool(
+            name='Knowledge Base',
+            func=qa.run,
+            description=(
+                'use this tool when answering general knowledge queries to get '
+                'more information about the topic'
+            )
+        )
+    ]
+
+    from langchain.agents import initialize_agent
+
+    agent = initialize_agent(
+        agent='chat-conversational-react-description',
+        tools=tools,
+        llm=llm,
+        verbose=True,
+        max_iterations=3,
+        early_stopping_method='generate',
+        memory=conversational_memory
+    )
+
+    return agent.run(query)

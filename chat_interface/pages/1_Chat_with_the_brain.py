@@ -1,6 +1,6 @@
 from typing import Set
 
-from backend.core import run_llm
+from backend.core import conversation_chain
 import streamlit as st
 from streamlit_chat import message
 from dotenv import load_dotenv
@@ -35,7 +35,7 @@ prompt = st.text_input("Prompt", placeholder="Enter your message here...") or st
 
 if prompt:
     with st.spinner("Generating response..."):
-        generated_response = run_llm(
+        generated_response = conversation_chain(
             query=prompt, chat_history=st.session_state["chat_history"]
         )
 

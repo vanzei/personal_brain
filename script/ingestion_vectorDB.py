@@ -13,7 +13,7 @@ pinecone_env = os.getenv('PINECONE_ENVIRONMENT_REGION')
 pinecone_index = os.getenv('INDEX_NAME')
 local_IP = os.getenv('local_IP')
 
-model_name = "sentence-transformers/all-MiniLM-L6-v2"
+model_name = "sentence-transformers/all-MiniLM-L12-v2"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModel.from_pretrained(model_name)
 
@@ -28,7 +28,7 @@ def generate_embeddings(text):
 pc = Pinecone(api_key=pinecone_key)
 
 index_name = pinecone_index  # Replace with your actual index name
-dimension = 384  # Dimension of your embeddings
+dimension = 1536  # Dimension of your embeddings
 metric = "cosine"  # Metric for the vector space
 
 # Retrieve the list of indexes and check if your index exists
