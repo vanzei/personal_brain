@@ -10,7 +10,7 @@ blinker==1.4
 cachetools==5.3.3
 certifi==2024.2.2
 charset-normalizer==3.3.2
-cryptography==3.4.8
+cryptography==42.0.4
 dataclasses-json==0.6.4
 distlib==0.3.8
 exceptiongroup==1.2.0
