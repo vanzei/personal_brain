@@ -34,9 +34,6 @@ def run_query(query, memory):# Initialize the language model
         temperature=0.0
     )
 
-    # Initialize ConversationBufferMemory to store chat history
-    #memory = ConversationBufferMemory(max_len=5)  # Set the maximum length of history to retain
-
     # Initialize RetrievalQA with memory and retriever
     qa = RetrievalQA.from_chain_type(
         llm=llm,
@@ -46,6 +43,6 @@ def run_query(query, memory):# Initialize the language model
 
     # Perform question answering
     
-    res = qa(query)
+    res = qa.invoke(query)
     print(res)
     return res['result'], memory 
